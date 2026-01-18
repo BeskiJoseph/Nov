@@ -5,12 +5,14 @@ import 'screens/welcome_screen.dart';
 import 'screens/home_screen.dart';
 import 'services/auth_service.dart';
 import 'firebase_options.dart';
+import 'services/supabase_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  await SupabaseService.initialize();
   runApp(const MyApp());
 }
 

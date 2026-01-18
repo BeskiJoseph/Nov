@@ -3,7 +3,6 @@ import '../widgets/video_slider.dart';
 import '../models/signup_data.dart';
 import 'signup/signup_email.dart';
 import '../utils/location_service.dart';
-import 'package:flutter/foundation.dart';
 import '../services/auth_service.dart';
 import 'home_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -69,14 +68,12 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     });
 
     try {
-      print('=== LOGIN ATTEMPT START ===');
       UserCredential? result = await AuthService.signInWithEmail(
         _emailController.text.trim(),
         _passwordController.text,
       );
 
       if (result != null && result.user != null) {
-        print('=== LOGIN SUCCESSFUL - NAVIGATING TO HOME ===');
         if (mounted) {
           Navigator.pushReplacement(
             context,
@@ -121,28 +118,23 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     });
 
     try {
-      print('=== GOOGLE BUTTON PRESSED ===');
       UserCredential? result = await AuthService.signInWithGoogle();
 
       if (result != null && result.user != null && mounted) {
-        print('=== GOOGLE LOGIN SUCCESSFUL - NAVIGATING TO HOME ===');
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const HomeScreen()),
         );
       } else {
-        print('=== GOOGLE LOGIN CANCELLED OR NULL RESULT ===');
         // Don't show error for user cancellation
       }
     } catch (e) {
-      print('Google sign in exception: $e');
       if (mounted) {
         String errorMessage = 'Google sign in failed. Please try again.';
         
         // Handle specific errors
         if (e.toString().contains('popup_closed')) {
           // User closed the popup - this is expected, don't show error
-          print('User closed Google Sign-In popup');
           return;
         } else if (e.toString().contains('PlatformException')) {
           errorMessage = 'Google Sign-In is not configured. Please check your Firebase settings.';

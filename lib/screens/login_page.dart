@@ -18,11 +18,6 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    // Test Firebase initialization with new project
-    print('=== LOGIN SCREEN INITIALIZED ===');
-    print('Firebase project: TestPro (testpro-73a93)');
-    AuthService.debugAuthStatus();
-    print('================================');
   }
 
   @override
@@ -45,19 +40,12 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      print('=== LOGIN ATTEMPT START ===');
       UserCredential? result = await AuthService.signInWithEmail(
         _emailController.text.trim(),
         _passwordController.text,
       );
 
-      print('Login result: $result');
-      print('User email: ${result?.user?.email}');
-      print('User UID: ${result?.user?.uid}');
-
       if (result != null) {
-        print('=== NAVIGATING TO WELCOME SCREEN ===');
-        // Test with a simple screen first
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => Scaffold(
@@ -74,9 +62,7 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           )),
         );
-        print('=== NAVIGATION COMPLETED ===');
       } else {
-        print('=== LOGIN FAILED - RESULT IS NULL ===');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Login failed. Please check your credentials.')),
         );
@@ -216,9 +202,6 @@ class _LoginScreenState extends State<LoginScreen> {
               child: OutlinedButton(
                 child: const Text("Test Login Function"),
                 onPressed: () {
-                  print('Test login button pressed');
-                  print('Email: ${_emailController.text}');
-                  print('Password: ${_passwordController.text}');
                   _signInWithEmail();
                 },
               ),
@@ -233,7 +216,6 @@ class _LoginScreenState extends State<LoginScreen> {
               child: OutlinedButton(
                 child: const Text("Debug Auth Status"),
                 onPressed: () {
-                  AuthService.debugAuthStatus();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Check console for debug info')),
                   );

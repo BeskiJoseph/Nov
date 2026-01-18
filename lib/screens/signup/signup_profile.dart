@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
@@ -7,6 +7,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../widgets/primary_button.dart';
 import '../../models/signup_data.dart';
 import '../../services/auth_service.dart';
+import '../../services/supabase_service.dart';
+import '../../services/firestore_service.dart';
 import '../home_screen.dart';
 
 class SignupProfileScreen extends StatefulWidget {
@@ -18,10 +20,10 @@ class SignupProfileScreen extends StatefulWidget {
 }
 
 class _SignupProfileScreenState extends State<SignupProfileScreen> {
-  File? _profileImage;
+  Uint8List? _profileImageBytes;
+  String? _profileImageExtension;
   final ImagePicker _picker = ImagePicker();
   bool _isLoading = false;
-
   /// Pick image from camera or gallery, then crop and update state
   Future<void> _pickAndCropImage(ImageSource source) async {
     final XFile? pickedFile = await _picker.pickImage(source: source);
@@ -49,8 +51,10 @@ class _SignupProfileScreenState extends State<SignupProfileScreen> {
     );
 
     if (croppedFile != null) {
+      final bytes = await croppedFile.readAsBytes();
       setState(() {
-        _profileImage = File(croppedFile.path);
+        _profileImageBytes = bytes;
+        _profileImageExtension = 'jpg';
       });
     }
   }
@@ -86,20 +90,33 @@ class _SignupProfileScreenState extends State<SignupProfileScreen> {
 
   Future<void> _createAccount() async {
     try {
-      // Create Firebase account
       UserCredential? result = await AuthService.signUpWithEmail(
         widget.data.email!,
         widget.data.password!,
       );
 
       if (result != null) {
-        // Update profile with username if available
         if (widget.data.username != null) {
           await AuthService.updateProfile(displayName: widget.data.username);
         }
 
-        // Save profile image path in data
-        widget.data.profileImagePath = _profileImage?.path;
+        String? imageUrl;
+        if (_profileImageBytes != null && result.user != null) {
+          imageUrl = await SupabaseService.uploadProfileImage(
+            userId: result.user!.uid,
+            data: _profileImageBytes!,
+            fileExtension: _profileImageExtension ?? 'jpg',
+          );
+          widget.data.profileImagePath = imageUrl;
+        }
+
+        if (result.user != null) {
+          await FirestoreService.createUserProfile(
+            user: result.user!,
+            data: widget.data,
+            profileImageUrl: imageUrl,
+          );
+        }
 
         Navigator.pushReplacement(
           context,
@@ -131,9 +148,10 @@ class _SignupProfileScreenState extends State<SignupProfileScreen> {
               child: CircleAvatar(
                 radius: 50,
                 backgroundColor: Colors.grey[300],
-                backgroundImage:
-                    _profileImage != null ? FileImage(_profileImage!) : null,
-                child: _profileImage == null
+                backgroundImage: _profileImageBytes != null
+                    ? MemoryImage(_profileImageBytes!)
+                    : null,
+                child: _profileImageBytes == null
                     ? const Icon(Icons.add_a_photo,
                         size: 40, color: Colors.white)
                     : null,
