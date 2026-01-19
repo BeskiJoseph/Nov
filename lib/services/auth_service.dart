@@ -139,4 +139,23 @@ class AuthService {
     } on FirebaseAuthException catch (e) {
     }
   }
+
+  // Send email verification
+  static Future<void> sendEmailVerification() async {
+    try {
+      await _auth.currentUser?.sendEmailVerification();
+    } on FirebaseAuthException catch (e) {
+      if (kDebugMode) print("Error sending email verification: $e");
+      rethrow;
+    }
+  }
+
+  // Reload user to get fresh data (like emailVerified status)
+  static Future<void> reloadUser() async {
+    try {
+      await _auth.currentUser?.reload();
+    } on FirebaseAuthException catch (e) {
+      if (kDebugMode) print("Error reloading user: $e");
+    }
+  }
 }

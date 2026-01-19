@@ -10,6 +10,7 @@ import '../../services/auth_service.dart';
 import '../../services/supabase_service.dart';
 import '../../services/firestore_service.dart';
 import '../home_screen.dart';
+import '../verify_email_screen.dart';
 
 class SignupProfileScreen extends StatefulWidget {
   final SignupData data;
@@ -118,10 +119,15 @@ class _SignupProfileScreenState extends State<SignupProfileScreen> {
           );
         }
 
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-        );
+        // Send verification email
+        // Handled in VerifyEmailScreen
+        
+        if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const VerifyEmailScreen()),
+            );
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Failed to create account')),

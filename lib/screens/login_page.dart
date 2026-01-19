@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
 import 'welcome_screen.dart';
+import 'verify_email_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -46,22 +47,27 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (result != null) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => Scaffold(
-            appBar: AppBar(title: const Text("Welcome!")),
-            body: const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text("Login Successful!", style: TextStyle(fontSize: 24)),
-                  SizedBox(height: 20),
-                  Text("Welcome to TestPro App", style: TextStyle(fontSize: 18)),
-                ],
-              ),
-            ),
-          )),
-        );
+        // Reload user to get the latest emailVerified status
+        await result.user?.reload();
+        // We need to get the user again after reload to check the property
+        final user = FirebaseAuth.instance.currentUser;
+        
+        if (user != null && user.emailVerified) {
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const WelcomeScreen()),
+            );
+          }
+        } else {
+          // User not verified
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const VerifyEmailScreen()),
+            );
+          }
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Login failed. Please check your credentials.')),
@@ -110,10 +116,25 @@ class _LoginScreenState extends State<LoginScreen> {
       UserCredential? result = await AuthService.signInWithGoogle();
 
       if (result != null) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const WelcomeScreen()),
-        );
+        // Google accounts usually come verified, but good to check or enforce if policy requires
+        await result.user?.reload();
+        final user = FirebaseAuth.instance.currentUser;
+
+        if (user != null && user.emailVerified) {
+           if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const WelcomeScreen()),
+            );
+           }
+        } else {
+           if (mounted) {
+             Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const VerifyEmailScreen()),
+            );
+           }
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Google sign in failed.')),

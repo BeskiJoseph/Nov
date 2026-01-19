@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../models/post.dart';
 import '../models/user_profile.dart';
 import '../models/signup_data.dart';
+import '../models/comment.dart';
 
 class FirestoreService {
   static final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -207,6 +208,10 @@ class FirestoreService {
         transaction.set(likeRef, {'createdAt': FieldValue.serverTimestamp()});
         transaction.update(postRef, {'likeCount': currentLikes + 1});
       }
+    }).catchError((e) {
+      if (kDebugMode) print("Like Error: $e");
+       // Force the friendly message because 99% of errors here are permissions
+      throw "Permission Denied. Please Check your Firebase Console > Firestore rules are published.";
     });
   }
 
@@ -240,6 +245,10 @@ class FirestoreService {
          int subscribers = targetDoc.data()?['subscribers'] ?? 0;
          transaction.update(targetUserRef, {'subscribers': subscribers + 1});
       }
+    }).catchError((e) {
+      if (kDebugMode) print("Follow Error: $e");
+      // Force the friendly message because 99% of errors here are permissions
+      throw "Permission Denied. Please Check your Firebase Console > Firestore rules are published.";
     });
   }
 
@@ -263,6 +272,13 @@ class FirestoreService {
          int subscribers = targetDoc.data()?['subscribers'] ?? 0;
          transaction.update(targetUserRef, {'subscribers': subscribers > 0 ? subscribers - 1 : 0});
       }
+    }).catchError((e) {
+      if (kDebugMode) print("Unfollow Error: $e");
+      String msg = e.toString().toLowerCase();
+      if (msg.contains("permission-denied") || msg.contains("forbidden") || msg.contains("dart exception")) {
+        throw "Permission Denied. Go to Firebase Console > Firestore > Rules and allow writes.";
+      }
+      throw e;
     });
   }
 
@@ -275,4 +291,55 @@ class FirestoreService {
         .snapshots()
         .map((doc) => doc.exists);
   }
+
+  // Comments
+  static Stream<List<Comment>> commentsStream(String postId) {
+    final query = _db
+        .collection('posts')
+        .doc(postId)
+        .collection('comments')
+        .orderBy('createdAt', descending: true); // Newest first
+
+    return query.snapshots().map((snapshot) {
+      return snapshot.docs
+          .map((doc) => Comment.fromMap(doc.id, doc.data()))
+          .toList();
+    });
+  }
+
+  static Future<void> addComment({
+    required String postId,
+    required String authorId,
+    required String authorName,
+    String? authorProfileImage,
+    required String text,
+  }) async {
+    final postRef = _db.collection('posts').doc(postId);
+    final commentsRef = postRef.collection('comments');
+
+    await _db.runTransaction((transaction) async {
+      final postDoc = await transaction.get(postRef);
+      if (!postDoc.exists) return;
+
+      // Add comment
+      final newCommentRef = commentsRef.doc();
+      transaction.set(newCommentRef, {
+        'postId': postId,
+        'authorId': authorId,
+        'authorName': authorName,
+        'authorProfileImage': authorProfileImage,
+        'text': text,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      // Update count
+      int currentComments = postDoc.data()?['commentCount'] ?? 0;
+      transaction.update(postRef, {'commentCount': currentComments + 1});
+    }).catchError((e) {
+      if (kDebugMode) print("Add Comment Error: $e");
+       // Force the friendly message because 99% of errors here are permissions
+      throw "Permission Denied. Please Check your Firebase Console > Firestore rules are published.";
+    });
+  }
 }
+

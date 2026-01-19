@@ -1,0 +1,74 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- Helper Functions ---
+    
+    // Check if user is logged in
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Check if the current user is owner of the document (by matching ID)
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Check if the update ONLY changes specific fields (counters)
+    function isOnlyChange(field) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([field]);
+    }
+    
+    // Check if the update ONLY changes a set of fields
+    function isOnlyChanges(fields) {
+       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+    }
+
+    // --- Users Collection ---
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if isOwner(userId);
+      
+      // Update: Owner can edit profile OR anyone can update 'subscribers' count (for following)
+      allow update: if isOwner(userId) || (isAuthenticated() && isOnlyChange('subscribers'));
+
+      // Followers: User B adds themselves as follower to User A
+      match /followers/{followerId} {
+        allow read: if true;
+        allow write: if isOwner(followerId);
+      }
+      
+      // Following: User A adds User B to their following list
+      match /following/{followingId} {
+        allow read: if true;
+        allow write: if isOwner(userId);
+      }
+    }
+
+    // --- Posts Collection ---
+    match /posts/{postId} {
+      allow read: if true;
+      allow create: if isAuthenticated();
+      
+      // Update: Author can edit entire post OR anyone can update 'likeCount'/'commentCount'
+      allow update: if (isAuthenticated() && resource.data.authorId == request.auth.uid) 
+                    || (isAuthenticated() && isOnlyChanges(['likeCount', 'commentCount']));
+                    
+      allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
+
+      // Likes: stored as /posts/POST_ID/likes/USER_ID
+      match /likes/{userId} {
+         allow read: if true;
+         allow write: if isOwner(userId);
+      }
+
+      // Comments: stored as /posts/POST_ID/comments/COMMENT_ID
+      match /comments/{commentId} {
+         allow read: if true;
+         allow create: if isAuthenticated();
+         // Only author of the comment or author of the post usually can delete (simplified here to author of comment)
+         allow delete: if isAuthenticated() && resource.data.authorId == request.auth.uid;
+      }
+    }
+  }
+}
