@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import '../services/auth_service.dart';
 
 import '../models/post.dart';
 import '../services/firestore_service.dart';
@@ -114,11 +115,11 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _actionButton(Icons.thumb_up_alt_outlined, 'Like'),
-                  _actionButton(Icons.share_outlined, 'Share'),
-                  _actionButton(Icons.subscriptions_outlined, 'Subscribe'),
-                  _actionButton(Icons.mode_comment_outlined, 'Comment'),
-                  _actionButton(Icons.flag_outlined, 'Report'),
+                  _buildLikeButton(),
+                  _actionButton(Icons.share_outlined, 'Share', () {}),
+                  _buildSubscribeButton(),
+                  _actionButton(Icons.mode_comment_outlined, 'Comment', () {}),
+                  _actionButton(Icons.flag_outlined, 'Report', () {}),
                 ],
               ),
             ),
@@ -218,16 +219,63 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     );
   }
 
-  Widget _actionButton(IconData icon, String label) {
-    return Column(
-      children: [
-        Icon(icon, size: 24),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(fontSize: 12),
-        ),
-      ],
+  Widget _actionButton(IconData icon, String label, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Icon(icon, size: 24),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLikeButton() {
+    final user = AuthService.currentUser;
+    if (user == null) {
+      return _actionButton(Icons.thumb_up_alt_outlined, 'Like', () {});
+    }
+
+    return StreamBuilder<bool>(
+      stream: FirestoreService.isPostLikedStream(widget.post.id, user.uid),
+      builder: (context, snapshot) {
+        final isLiked = snapshot.data ?? false;
+        return _actionButton(
+          isLiked ? Icons.thumb_up : Icons.thumb_up_alt_outlined,
+          'Like',
+          () => FirestoreService.toggleLikePost(widget.post.id, user.uid),
+        );
+      },
+    );
+  }
+
+  Widget _buildSubscribeButton() {
+    final user = AuthService.currentUser;
+    if (user == null || user.uid == widget.post.authorId) {
+      return _actionButton(Icons.subscriptions_outlined, 'Subscribe', () {});
+    }
+
+    return StreamBuilder<bool>(
+      stream: FirestoreService.isUserFollowedStream(user.uid, widget.post.authorId),
+      builder: (context, snapshot) {
+        final isFollowed = snapshot.data ?? false;
+        return _actionButton(
+          isFollowed ? Icons.check_circle : Icons.add_circle_outline,
+          isFollowed ? 'Subscribed' : 'Subscribe',
+          () {
+            if (isFollowed) {
+              FirestoreService.unfollowUser(user.uid, widget.post.authorId);
+            } else {
+              FirestoreService.followUser(user.uid, widget.post.authorId);
+            }
+          },
+        );
+      },
     );
   }
 }

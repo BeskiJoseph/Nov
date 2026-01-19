@@ -6,6 +6,9 @@ import '../models/user_profile.dart';
 import 'post_detail_screen.dart';
 import 'new_post_screen.dart';
 import 'welcome_screen.dart';
+import '../widgets/post_card.dart';
+import 'package:geolocator/geolocator.dart';
+import '../services/geocoding_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,6 +20,90 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   int _creatorTabIndex = 0;
+  String? _currentCity;
+  String? _currentCountry;
+  bool _isLoadingLocation = true;
+
+  String? _locationError;
+
+  @override
+  void initState() {
+    super.initState();
+    _detectLocation();
+  }
+
+  Future<void> _detectLocation() async {
+    setState(() {
+      _isLoadingLocation = true;
+      _locationError = null;
+    });
+
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (!mounted) return;
+        setState(() {
+          _isLoadingLocation = false;
+          _locationError = 'Location services are disabled.';
+        });
+        return;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (!mounted) return;
+          setState(() {
+            _isLoadingLocation = false;
+            _locationError = 'Location permissions are denied.';
+          });
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        if (!mounted) return;
+        setState(() {
+          _isLoadingLocation = false;
+          _locationError =
+              'Location permissions are permanently denied. Please enable them in your browser/device settings.';
+        });
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition();
+      
+      final place = await GeocodingService.getPlace(
+        position.latitude, 
+        position.longitude
+      );
+
+      if (!mounted) return;
+
+      if (place['city'] != null || place['country'] != null) {
+        setState(() {
+          _currentCity = place['city'];
+          _currentCountry = place['country'];
+          _isLoadingLocation = false;
+        });
+      } else {
+        setState(() {
+          _currentCity = 'Unknown City';
+          _currentCountry = 'Unknown Country';
+          _isLoadingLocation = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error detecting location: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingLocation = false;
+          _locationError = 'Error: ${e.toString()}';
+        });
+      }
+    }
+  }
 
   Future<void> _logout() async {
     await AuthService.signOut();
@@ -28,18 +115,82 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Widget _buildPostList(String scope) {
+  Widget _buildPostList(String feedType) {
+    if (_isLoadingLocation) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_locationError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.location_off, size: 48, color: Colors.orange),
+              const SizedBox(height: 16),
+              Text(
+                _locationError!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.red),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: _detectLocation,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry Location'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (feedType == 'local' && _currentCity == null) {
+      return const Center(
+        child: Text('Waiting for location...'),
+      );
+    }
+    if ((feedType == 'national' || feedType == 'global') && _currentCountry == null) {
+      return const Center(
+        child: Text('Waiting for location...'),
+      );
+    }
+
     return StreamBuilder<List<Post>>(
-      stream: FirestoreService.postsByScope(scope),
+      stream: FirestoreService.postsForFeed(
+        feedType: feedType,
+        userCity: _currentCity,
+        userCountry: _currentCountry,
+      ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
 
+        if (snapshot.hasError) {
+          return Center(
+             child: Padding(
+               padding: const EdgeInsets.all(16.0),
+               child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.red)),
+             ),
+          );
+        }
+
         final posts = snapshot.data ?? [];
         if (posts.isEmpty) {
-          return const Center(
-            child: Text('No posts yet'),
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('No posts yet in this area'),
+                const SizedBox(height: 8),
+                Text(
+                  'City: $_currentCity, Country: $_currentCountry',
+                  style: const TextStyle(color: Colors.grey, fontSize: 12),
+                ),
+              ],
+            ),
           );
         }
 
@@ -47,75 +198,10 @@ class _HomeScreenState extends State<HomeScreen> {
           itemCount: posts.length,
           itemBuilder: (context, index) {
             final post = posts[index];
-            return _postCard(post);
+            return PostCard(post: post);
           },
         );
       },
-    );
-  }
-
-  Widget _postCard(Post post) {
-    return Card(
-      margin: const EdgeInsets.all(12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => PostDetailScreen(post: post),
-            ),
-          );
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ListTile(
-              leading: CircleAvatar(
-                child: Text(
-                  post.authorName.isNotEmpty
-                      ? post.authorName[0].toUpperCase()
-                      : '?',
-                ),
-              ),
-              title: Text(post.authorName),
-              subtitle: Text(post.title),
-              trailing: const Icon(Icons.more_vert),
-            ),
-            if (post.mediaUrl != null)
-              AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Image.network(
-                  post.mediaUrl!,
-                  fit: BoxFit.cover,
-                ),
-              ),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(
-                post.body,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
-                children: [
-                  Icon(Icons.favorite, size: 18, color: Colors.red.shade400),
-                  const SizedBox(width: 4),
-                  Text(post.likeCount.toString()),
-                  const SizedBox(width: 16),
-                  const Icon(Icons.comment, size: 18),
-                  const SizedBox(width: 4),
-                  Text(post.commentCount.toString()),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -140,7 +226,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: TabBarView(
               children: [
                 _buildPostList('local'),
-                _buildPostList('national'),
+                _buildPostList('national'), // Passed as 'national' to match feedType logic
                 _buildPostList('global'),
               ],
             ),
@@ -338,7 +424,7 @@ class _HomeScreenState extends State<HomeScreen> {
           itemCount: posts.length,
           itemBuilder: (context, index) {
             final post = posts[index];
-            return _postCard(post);
+            return PostCard(post: post);
           },
         );
       },

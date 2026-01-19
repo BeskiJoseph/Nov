@@ -24,6 +24,8 @@ dependencies:
   google_sign_in: ^6.2.1   
   cloud_firestore: ^5.4.4
   supabase_flutter: ^2.5.8
+  geocoding: ^4.0.0
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:

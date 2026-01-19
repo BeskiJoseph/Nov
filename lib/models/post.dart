@@ -12,6 +12,11 @@ class Post {
   final DateTime createdAt;
   final int likeCount;
   final int commentCount;
+  final double? latitude;
+  final double? longitude;
+  final String? city;
+  final String? country;
+  final String category;
 
   Post({
     required this.id,
@@ -25,6 +30,11 @@ class Post {
     required this.createdAt,
     required this.likeCount,
     required this.commentCount,
+    this.latitude,
+    this.longitude,
+    this.city,
+    this.country,
+    this.category = 'General',
   });
 
   factory Post.fromMap(String id, Map<String, dynamic> data) {
@@ -51,6 +61,11 @@ class Post {
       createdAt: created,
       likeCount: data['likeCount'] as int? ?? 0,
       commentCount: data['commentCount'] as int? ?? 0,
+      latitude: (data['latitude'] as num?)?.toDouble(),
+      longitude: (data['longitude'] as num?)?.toDouble(),
+      city: data['city'] as String?,
+      country: data['country'] as String?,
+      category: data['category'] as String? ?? 'General',
     );
   }
 
@@ -66,6 +81,11 @@ class Post {
       'createdAt': createdAt,
       'likeCount': likeCount,
       'commentCount': commentCount,
+      'latitude': latitude,
+      'longitude': longitude,
+      'city': city,
+      'country': country,
+      'category': category,
     };
   }
 }
