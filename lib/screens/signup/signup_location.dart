@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../widgets/input_field.dart';
 import '../../widgets/primary_button.dart';
 import '../../models/signup_data.dart';
 import 'signup_profile.dart';

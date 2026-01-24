@@ -21,9 +21,7 @@ class GeocodingService {
         
         // Fallback for city if empty (sometimes returns empty string)
         if (city != null && city.isEmpty) city = null;
-        if (city == null) {
-             city = data['principalSubdivision']; // State/Province as fallback
-        }
+        city ??= data['principalSubdivision'];
 
         return {
           'city': city,

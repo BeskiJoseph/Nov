@@ -301,7 +301,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   }
 
   Widget _buildCommentInput() {
-    final TextEditingController _commentController = TextEditingController();
+    final TextEditingController commentController = TextEditingController();
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -320,7 +320,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           children: [
             Expanded(
               child: TextField(
-                controller: _commentController,
+                controller: commentController,
                 decoration: const InputDecoration(
                   hintText: "Add a comment...",
                   border: InputBorder.none,
@@ -330,12 +330,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             IconButton(
               icon: const Icon(Icons.send, color: Colors.blue),
               onPressed: () async {
-                final text = _commentController.text.trim();
+                final text = commentController.text.trim();
                 final user = AuthService.currentUser;
                 
                 if (text.isNotEmpty && user != null) {
                    // Optimistic update or just clear
-                   _commentController.clear();
+                   commentController.clear();
                    FocusScope.of(context).unfocus();
                    
                    // Fetch simple profile info or just use User object

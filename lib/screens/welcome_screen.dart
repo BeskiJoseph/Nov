@@ -133,15 +133,27 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         String errorMessage = 'Google sign in failed. Please try again.';
         
         // Handle specific errors
-        if (e.toString().contains('popup_closed')) {
+        final errorString = e.toString();
+        if (errorString.contains('popup_closed')) {
           // User closed the popup - this is expected, don't show error
           return;
-        } else if (e.toString().contains('PlatformException')) {
+        } else if (errorString.contains('PlatformException')) {
           errorMessage = 'Google Sign-In is not configured. Please check your Firebase settings.';
+        } else if (errorString.contains('403')) {
+          errorMessage = '403 Forbidden: Please enable "Google People API" in your Google Cloud Console.';
         }
         
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage)),
+          SnackBar(
+            content: Text(errorMessage),
+            duration: const Duration(seconds: 5),
+            action: errorString.contains('403') ? SnackBarAction(
+              label: 'Help',
+              onPressed: () {
+                // Ideally launch URL here, but keeping it simple for now
+              },
+            ) : null,
+          ),
         );
       }
     } finally {

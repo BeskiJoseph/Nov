@@ -142,7 +142,69 @@ class FirestoreService {
       if (!snapshot.exists) return;
       final current = snapshot.get('contents') as int? ?? 0;
       transaction.update(userRef, {'contents': current + 1});
+    }).catchError((e, stack) {
+      if (kDebugMode) {
+        print("Increment Content Count Error: $e");
+        print("Stack trace: $stack");
+      }
     });
+  }
+
+  // Recalculate user statistics from actual data
+  static Future<void> recalculateUserStats(String userId) async {
+    try {
+      // Count actual posts
+      final postsSnapshot = await _db
+          .collection('posts')
+          .where('authorId', isEqualTo: userId)
+          .get();
+      final contentCount = postsSnapshot.docs.length;
+
+      // Count actual followers
+      final followersSnapshot = await _db
+          .collection('users')
+          .doc(userId)
+          .collection('followers')
+          .get();
+      final subscriberCount = followersSnapshot.docs.length;
+
+      // Get current user data or create new profile
+      final userDoc = await _db.collection('users').doc(userId).get();
+      
+      if (!userDoc.exists) {
+        // Create a basic profile if it doesn't exist
+        final user = FirebaseAuth.instance.currentUser;
+        await _db.collection('users').doc(userId).set({
+          'email': user?.email ?? '',
+          'username': user?.displayName ?? 'User',
+          'firstName': null,
+          'lastName': null,
+          'location': null,
+          'dob': null,
+          'phone': null,
+          'gender': null,
+          'about': null,
+          'profileImageUrl': user?.photoURL,
+          'contents': contentCount,
+          'subscribers': subscriberCount,
+        });
+      } else {
+        // Update existing profile with correct counts
+        await _db.collection('users').doc(userId).update({
+          'contents': contentCount,
+          'subscribers': subscriberCount,
+        });
+      }
+
+      if (kDebugMode) {
+        print("Recalculated stats for $userId: $contentCount contents, $subscriberCount subscribers");
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print("Error recalculating stats: $e");
+      }
+      rethrow; // Re-throw to show error to user
+    }
   }
 
   static Future<String> createPost({
@@ -215,6 +277,36 @@ class FirestoreService {
     });
   }
 
+  // Idempotent like operation
+  static Future<void> setPostLike(String postId, String userId, bool shouldLike) async {
+    final postRef = _db.collection('posts').doc(postId);
+    final likeRef = postRef.collection('likes').doc(userId);
+
+    await _db.runTransaction((transaction) async {
+      final likeDoc = await transaction.get(likeRef);
+      final postDoc = await transaction.get(postRef);
+
+      if (!postDoc.exists) return;
+
+      int currentLikes = postDoc.data()?['likeCount'] ?? 0;
+      final bool alreadyLiked = likeDoc.exists;
+
+      if (shouldLike && !alreadyLiked) {
+        // Create Like
+        transaction.set(likeRef, {'createdAt': FieldValue.serverTimestamp()});
+        transaction.update(postRef, {'likeCount': currentLikes + 1});
+      } else if (!shouldLike && alreadyLiked) {
+        // Delete Like
+        transaction.delete(likeRef);
+        transaction.update(postRef, {'likeCount': currentLikes > 0 ? currentLikes - 1 : 0});
+      }
+      // If state matches desired (e.g. shouldLike=true and alreadyLiked=true), do nothing.
+    }).catchError((e) {
+      if (kDebugMode) print("Set Like Error: $e");
+      throw "Action Failed: ${e.toString()}";
+    });
+  }
+
   static Stream<bool> isPostLikedStream(String postId, String userId) {
     return _db
         .collection('posts')
@@ -236,19 +328,24 @@ class FirestoreService {
       final followingDoc = await transaction.get(followingRef);
       if (followingDoc.exists) return; // Already following
 
+      // Read target user doc first (Must read before any writes)
+      final targetDoc = await transaction.get(targetUserRef);
+
       transaction.set(followingRef, {'createdAt': FieldValue.serverTimestamp()});
       transaction.set(followersRef, {'createdAt': FieldValue.serverTimestamp()});
 
       // Update subscribers count
-      final targetDoc = await transaction.get(targetUserRef);
       if (targetDoc.exists) {
          int subscribers = targetDoc.data()?['subscribers'] ?? 0;
          transaction.update(targetUserRef, {'subscribers': subscribers + 1});
       }
-    }).catchError((e) {
-      if (kDebugMode) print("Follow Error: $e");
-      // Force the friendly message because 99% of errors here are permissions
-      throw "Permission Denied. Please Check your Firebase Console > Firestore rules are published.";
+    }).catchError((e, stack) {
+      if (kDebugMode) {
+        print("Follow Error: $e");
+        print("Stack trace: $stack");
+      }
+      // Include the actual error for debugging context
+      throw "Action Failed: ${e.toString()}";
     });
   }
 
@@ -263,22 +360,46 @@ class FirestoreService {
       final followingDoc = await transaction.get(followingRef);
       if (!followingDoc.exists) return; // Not following
 
+      // Read target user doc first (Must read before any writes)
+      final targetDoc = await transaction.get(targetUserRef);
+
       transaction.delete(followingRef);
       transaction.delete(followersRef);
 
        // Update subscribers count
-      final targetDoc = await transaction.get(targetUserRef);
       if (targetDoc.exists) {
          int subscribers = targetDoc.data()?['subscribers'] ?? 0;
          transaction.update(targetUserRef, {'subscribers': subscribers > 0 ? subscribers - 1 : 0});
       }
-    }).catchError((e) {
-      if (kDebugMode) print("Unfollow Error: $e");
-      String msg = e.toString().toLowerCase();
-      if (msg.contains("permission-denied") || msg.contains("forbidden") || msg.contains("dart exception")) {
-        throw "Permission Denied. Go to Firebase Console > Firestore > Rules and allow writes.";
+    }).catchError((e, stack) {
+      if (kDebugMode) {
+        print("Unfollow Error: $e");
+        print("Stack trace: $stack");
       }
-      throw e;
+      throw "Action Failed: ${e.toString()}";
+    });
+  }
+
+  static Stream<List<UserProfile>> followersStream(String userId) {
+    return _db
+        .collection('users')
+        .doc(userId)
+        .collection('followers')
+        .snapshots()
+        .asyncMap((snapshot) async {
+      if (snapshot.docs.isEmpty) return [];
+      final userIds = snapshot.docs.map((doc) => doc.id).toList();
+
+      // Fetch user profiles for each follower
+      // Note: For large lists, this should be paginated or optimized
+      final profiles = <UserProfile>[];
+      for (var id in userIds) {
+        final doc = await _db.collection('users').doc(id).get();
+        if (doc.exists) {
+          profiles.add(UserProfile.fromMap(doc.id, doc.data()!));
+        }
+      }
+      return profiles;
     });
   }
 

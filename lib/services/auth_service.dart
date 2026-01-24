@@ -42,7 +42,7 @@ class AuthService {
         password: password,
       );
       return result;
-    } on FirebaseAuthException catch (e) {
+    } on FirebaseAuthException {
       rethrow;
     } catch (e) {
       rethrow;
@@ -57,7 +57,7 @@ class AuthService {
         password: password,
       );
       return result;
-    } on FirebaseAuthException catch (e) {
+    } on FirebaseAuthException {
       rethrow;
     } catch (e) {
       rethrow;
@@ -107,7 +107,7 @@ class AuthService {
 
       UserCredential result = await _auth.signInWithCredential(credential);
       return result;
-    } on FirebaseAuthException catch (e) {
+    } on FirebaseAuthException {
       rethrow;
     } catch (e) {
       rethrow;
@@ -127,7 +127,7 @@ class AuthService {
   static Future<void> resetPassword(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email);
-    } on FirebaseAuthException catch (e) {
+    } on FirebaseAuthException {
     }
   }
 
@@ -136,7 +136,14 @@ class AuthService {
     try {
       await _auth.currentUser?.updateDisplayName(displayName);
       await _auth.currentUser?.updatePhotoURL(photoURL);
-    } on FirebaseAuthException catch (e) {
+    } on FirebaseAuthException {
+    }
+  }
+  // Reload user
+  static Future<void> reloadUser() async {
+    try {
+      await _auth.currentUser?.reload();
+    } on FirebaseAuthException {
     }
   }
 
@@ -144,18 +151,8 @@ class AuthService {
   static Future<void> sendEmailVerification() async {
     try {
       await _auth.currentUser?.sendEmailVerification();
-    } on FirebaseAuthException catch (e) {
-      if (kDebugMode) print("Error sending email verification: $e");
+    } on FirebaseAuthException {
       rethrow;
-    }
-  }
-
-  // Reload user to get fresh data (like emailVerified status)
-  static Future<void> reloadUser() async {
-    try {
-      await _auth.currentUser?.reload();
-    } on FirebaseAuthException catch (e) {
-      if (kDebugMode) print("Error reloading user: $e");
     }
   }
 }

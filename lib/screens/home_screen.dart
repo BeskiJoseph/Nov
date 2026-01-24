@@ -3,7 +3,6 @@ import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../models/post.dart';
 import '../models/user_profile.dart';
-import 'post_detail_screen.dart';
 import 'new_post_screen.dart';
 import 'welcome_screen.dart';
 import '../widgets/post_card.dart';
