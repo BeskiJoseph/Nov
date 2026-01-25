@@ -204,36 +204,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildFeed() {
-    return DefaultTabController(
-      length: 3,
-      child: Column(
-        children: [
-          Container(
-            color: Theme.of(context).primaryColor,
-            child: const TabBar(
-              labelColor: Colors.white,
-              unselectedLabelColor: Colors.white70,
-              tabs: [
-                Tab(text: 'Local'),
-                Tab(text: 'National'),
-                Tab(text: 'Global'),
-              ],
-            ),
-          ),
-          Expanded(
-            child: TabBarView(
-              children: [
-                _buildPostList('local'),
-                _buildPostList('national'), // Passed as 'national' to match feedType logic
-                _buildPostList('global'),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+
 
   Widget _buildCreatorDashboard() {
     final user = AuthService.currentUser;
@@ -594,54 +565,198 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("LocalMe"),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add_circle_outline),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const NewPostScreen(),
-                ),
-              );
-            },
-            tooltip: 'New Post',
+  // 🔻 Custom App Bar
+  Widget _buildCustomAppBar() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Invisible icon for balance if needed, or just spacer
+           const SizedBox(width: 40),
+          
+          const Text(
+            "LocalMe",
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+              fontFamily: 'Inter',
+            ),
           ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: _logout,
-            tooltip: 'Logout',
+
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline, color: Colors.black),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const NewPostScreen(),
+                    ),
+                  );
+                },
+                tooltip: 'New Post',
+              ),
+              IconButton(
+                icon: const Icon(Icons.logout, color: Colors.black),
+                onPressed: _logout,
+                tooltip: 'Logout',
+              ),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeed() {
+    return DefaultTabController(
+      length: 3,
+      child: Column(
+        children: [
+          // 🔻 Tab Bar (Spec Point 3)
+          Container(
+            width: double.infinity,
+            height: 48, // Spec: 48px
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF4C5EFF), Color(0xFF6A5CFF)], // Spec: Gradient
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+              borderRadius: BorderRadius.zero, // Spec: Radius 0
+            ),
+            child: const TabBar(
+              indicatorColor: Colors.white,
+              // Spec: Indicator Height 3px, Width 24px, Radius 2px.
+              // Flutter's default indicator is full width. using TabBarIndicatorSize.label helps but width is dynamic.
+              // To get EXACT specific width 24px is hard with standard TabBar without custom Painter.
+              // We will approximate with label size and padding, or custom indicator if requested. 
+              // For now, I will use UnderlineTabIndicator with specific insets to try and conform.
+              indicator: UnderlineTabIndicator(
+                borderSide: BorderSide(width: 3.0, color: Colors.white),
+                borderRadius: BorderRadius.all(Radius.circular(2)),
+                insets: EdgeInsets.symmetric(horizontal: 40), // Force it smaller? Approximation.
+              ),
+              indicatorSize: TabBarIndicatorSize.label,
+              labelColor: Colors.white,
+              unselectedLabelColor: Color(0xFFE0E3FF), // Spec: #E0E3FF
+              labelStyle: TextStyle(
+                fontWeight: FontWeight.w600, // Spec: Active 600
+                fontSize: 15,
+                fontFamily: 'Inter',
+              ),
+              unselectedLabelStyle: TextStyle(
+                fontWeight: FontWeight.w500, // Spec: Inactive 500
+                fontSize: 15,
+                fontFamily: 'Inter',
+              ),
+              dividerColor: Colors.transparent,
+              tabs: [
+                Tab(text: 'Local'),
+                Tab(text: 'National'),
+                Tab(text: 'Global'),
+              ],
+            ),
+          ),
+          
+          Expanded(
+            child: TabBarView(
+              children: [
+                _buildPostList('local'),
+                _buildPostList('national'),
+                _buildPostList('global'),
+              ],
+            ),
           ),
         ],
       ),
-      body: getCurrentTab(),
+    );
+  }
 
-      // 🔻 Bottom Navigation
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() => _currentIndex = index);
-        },
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.view_list),
-            label: 'Feed',
+
+
+  @override
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF6F7FB), // Spec 1
+      body: SafeArea(
+        top: true,
+        bottom: false, // Let bottom nav handle safe area
+        child: Column(
+          children: [
+            _buildCustomAppBar(),
+            Expanded(
+              child: getCurrentTab(),
+            ),
+          ],
+        ),
+      ),
+
+      // 🔻 Bottom Navigation (Spec Point 9)
+      bottomNavigationBar: Container(
+        // height: 80, // Removed to prevent overflow on small screens/large font settings
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(18), // Spec: 18px
+            topRight: Radius.circular(18),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.video_collection),
-            label: 'Creator',
+          boxShadow: [
+             BoxShadow(
+               color: Color(0x1E000000), // #00000012 is roughly 12% opacity. 0x1E is ~12%. 
+               blurRadius: 16,
+               offset: Offset(0, -4),
+             )
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.only(
+             topLeft: Radius.circular(18),
+             topRight: Radius.circular(18),
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Account',
+          child: BottomNavigationBar(
+            currentIndex: _currentIndex,
+            onTap: (index) {
+              setState(() => _currentIndex = index);
+            },
+            backgroundColor: Colors.white,
+            elevation: 0,
+            selectedItemColor: const Color(0xFF4C5EFF), // Spec: Active
+            unselectedItemColor: const Color(0xFF9A9A9D), // Spec: Inactive
+            selectedLabelStyle: const TextStyle(
+              fontSize: 11, // Spec: 11px
+              fontWeight: FontWeight.w500, // Spec: 500
+              fontFamily: 'Inter',
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              fontFamily: 'Inter',
+            ),
+            showSelectedLabels: true,
+            showUnselectedLabels: true,
+            type: BottomNavigationBarType.fixed,
+            items: const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.home_rounded, size: 24), // Spec: 24px
+                label: 'Feed',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.video_library_rounded, size: 24),
+                label: 'Creator',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.person_rounded, size: 24),
+                label: 'Account',
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

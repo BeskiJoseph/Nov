@@ -80,9 +80,22 @@ class _PostCardState extends State<PostCard> {
   Widget build(BuildContext context) {
     final user = AuthService.currentUser;
 
-    return Card(
-      margin: const EdgeInsets.all(12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return Container(
+      // Spec 4: Margin 12px vertical. (Horizontal not specified, adhering to 16px safe width or implicit).
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16), // Spec: 16px
+        boxShadow: [
+          // Spec: Color #0000001A (approx 0.1 opacity), Blur 20, Offset (0, 6)
+          BoxShadow(
+            color: const Color(0x1A000000), 
+            offset: const Offset(0, 6),
+            blurRadius: 20,
+            spreadRadius: 0,
+          ),
+        ],
+      ),
       child: InkWell(
         onTap: () {
           Navigator.push(
@@ -92,120 +105,218 @@ class _PostCardState extends State<PostCard> {
             ),
           );
         },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ListTile(
-              leading: CircleAvatar(
-                child: Text(
-                  widget.post.authorName.isNotEmpty
-                      ? widget.post.authorName[0].toUpperCase()
-                      : '?',
-                ),
-              ),
-              title: Text(widget.post.authorName),
-              subtitle: Text(widget.post.title),
-              trailing: const Icon(Icons.more_vert),
-            ),
-            if (widget.post.mediaUrl != null)
-              AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Image.network(
-                  widget.post.mediaUrl!,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(
-                    color: Colors.grey.shade200,
-                    alignment: Alignment.center,
-                    child: const Icon(Icons.broken_image, size: 50),
-                  ),
-                ),
-              ),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(
-                widget.post.body,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Row(
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(14), // Spec: 14px
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 5️⃣ User Row
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                   // We need the stream to know the "Server Truth"
-                  StreamBuilder<bool>(
-                    stream: user != null
-                        ? FirestoreService.isPostLikedStream(widget.post.id, user.uid)
-                        : Stream.value(false),
-                    builder: (context, snapshot) {
-                      // Server Truth
-                      final streamLiked = snapshot.data ?? false;
-                      // We can assume the passed-in post.likeCount is the "server truth" for count
-                      // UNTIL real-time count updates are wired up via stream for the post itself.
-                      // Note: In a real app, you'd likely listen to the Post document stream too,
-                      // but here we only have isPostLikedStream.
-                      // So we use widget.post.likeCount as the base.
-                      final streamCount = widget.post.likeCount;
-
-                      // Check if our optimistic state matches the stream (eventual consistency achieved)
-                      // If stream has caught up, we can clear our override to reset to single source of truth
-                      if (_optimisticLiked == streamLiked) {
-                         // This safely resets the override only when data matches, preventing "jump back"
-                         // Schedule this for next frame to avoid setState during build
-                         WidgetsBinding.instance.addPostFrameCallback((_) {
-                           if (mounted && _optimisticLiked != null) {
-                             setState(() {
-                               _optimisticLiked = null;
-                               // We might not want to reset count yet if we don't have a live stream for it,
-                               // but usually if like state matches, count is likely updated or close enough.
-                               // meaningful only if we have a real-time post stream.
-                               _optimisticLikeCount = null; 
-                             });
-                           }
-                         });
-                      }
-
-                      // Display Logic: Prefer Optimistic -> Stream -> Default
-                      final isLiked = _optimisticLiked ?? streamLiked;
-                      
-                      // For count, we need to be careful.
-                      // If we have an optimistic count, use it.
-                      // If not, use the widget data.
-                      // IMPORTANT: Since we don't have a live stream for the specific Post document here
-                      // (only the 'isLiked' subcollection), the 'widget.post.likeCount' acts as a static snapshot
-                      // that only updates when the parent list rebuilds.
-                      // So our optimistic count is VERY important to keep until parent refresh.
-                      final displayCount = _optimisticLikeCount ?? streamCount;
-
-                      return IconButton(
-                        icon: Icon(
-                          isLiked ? Icons.favorite : Icons.favorite_border,
-                          size: 24,
-                          color: isLiked ? Colors.red.shade400 : Colors.grey,
-                        ),
-                        onPressed: user == null
-                            ? null
-                            : () => _toggleLike(user.uid, streamLiked, streamCount),
-                        tooltip: 'Like',
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      );
-                    },
+                  // Avatar
+                  Container(
+                    width: 40, 
+                    height: 40,
+                    alignment: Alignment.center,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF4C5EFF), // Spec: #4C5EFF
+                      shape: BoxShape.circle,
+                    ),
+                    child: Text(
+                      widget.post.authorName.isNotEmpty
+                          ? widget.post.authorName[0].toUpperCase()
+                          : '?',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600, // Spec: 600
+                        fontSize: 18, // Spec: 18px
+                        fontFamily: 'Inter',
+                      ),
+                    ),
                   ),
-                  const SizedBox(width: 8),
-                  // Display the calculated count
-                  Text((_optimisticLikeCount ?? widget.post.likeCount).toString()),
-                  const SizedBox(width: 24),
-                  const Icon(Icons.comment, size: 24, color: Colors.grey),
-                  const SizedBox(width: 8),
-                  Text(widget.post.commentCount.toString()),
+                  const SizedBox(width: 12), // Spacing not strictly specified but standard
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Username
+                        Text(
+                          widget.post.authorName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600, // Spec: 600
+                            fontSize: 15, // Spec: 15px
+                            color: Color(0xFF1C1C1E), // Spec: #1C1C1E
+                            fontFamily: 'Inter',
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        // Meta Text
+                        Text(
+                          _formatTimeAgo(widget.post.createdAt),
+                          style: const TextStyle(
+                            color: Color(0xFF8E8E93), // Spec: #8E8E93
+                            fontSize: 12, // Spec: 12px
+                            fontWeight: FontWeight.w400, // Spec: 400
+                            fontFamily: 'Inter',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Menu Icon
+                  IconButton(
+                    icon: const Icon(Icons.more_vert_rounded),
+                    color: const Color(0xFF8E8E93), // Spec: #8E8E93
+                    iconSize: 18, // Spec: 18px
+                    onPressed: () {},
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
                 ],
               ),
-            ),
-            const SizedBox(height: 8),
-          ],
+
+              const SizedBox(height: 12),
+              
+              // 6️⃣ Post Content Text
+              Text(
+                widget.post.body,
+                maxLines: 5, // Spec: 5
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 14, // Spec: 14px
+                  fontWeight: FontWeight.w400, // Spec: 400
+                  color: Color(0xFF2C2C2E), // Spec: #2C2C2E
+                  height: 1.4, // Spec: Line Height 1.4
+                  fontFamily: 'Inter',
+                ),
+              ),
+
+              // 7️⃣ Post Image
+              if (widget.post.mediaUrl != null) ...[
+                const SizedBox(height: 12), // Spec: Margin Top 12px
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14), // Spec: 14px
+                  child: AspectRatio(
+                    aspectRatio: 16 / 9, // Spec: 16:9
+                    child: Image.network(
+                      widget.post.mediaUrl!,
+                      fit: BoxFit.cover, // Spec: Cover
+                      errorBuilder: (context, error, stackTrace) => Container(
+                        color: Colors.grey.shade100,
+                        alignment: Alignment.center,
+                        child: Icon(Icons.broken_image, 
+                          color: Colors.grey.shade300, 
+                          size: 50
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 16), // Spec says "Between actions: 16px". Assuming this means between action row items or padding? 
+              // Usually spacing above actions.
+
+              // 8️⃣ Action Row
+              StreamBuilder<bool>(
+                stream: user != null
+                    ? FirestoreService.isPostLikedStream(widget.post.id, user.uid)
+                    : Stream.value(false),
+                builder: (context, snapshot) {
+                  final streamLiked = snapshot.data ?? false;
+                  final streamCount = widget.post.likeCount;
+                  
+                  if (_optimisticLiked == streamLiked) {
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted && _optimisticLiked != null) {
+                          setState(() {
+                            _optimisticLiked = null;
+                            _optimisticLikeCount = null; 
+                          });
+                        }
+                      });
+                  }
+
+                  final isLiked = _optimisticLiked ?? streamLiked;
+                  final displayCount = _optimisticLikeCount ?? streamCount;
+
+                  return Row(
+                    children: [
+                      // Like Action
+                      Row(
+                        children: [
+                          InkWell(
+                            onTap: user == null
+                                ? null
+                                : () => _toggleLike(user.uid, streamLiked, streamCount),
+                            child: Icon(
+                              isLiked ? Icons.favorite : Icons.favorite_border,
+                              size: 20, // Spec: 20px
+                              color: isLiked 
+                                ? const Color(0xFFFF4D4D) // Spec: Active #FF4D4D
+                                : const Color(0xFF8E8E93), // Spec: Inactive #8E8E93
+                            ),
+                          ),
+                          const SizedBox(width: 6), // Spec: Icon <-> Text 6px
+                          Text(
+                            displayCount.toString(),
+                            style: const TextStyle(
+                              color: Color(0xFF3A3A3C), // Spec: #3A3A3C
+                              fontWeight: FontWeight.w500, // Spec: 500
+                              fontSize: 13, // Spec: 13px
+                              fontFamily: 'Inter',
+                            ),
+                          ),
+                        ],
+                      ),
+                      
+                      const SizedBox(width: 16), // Spec: Between actions 16px
+
+                      // Comment Action
+                      Row(
+                        children: [
+                          const Icon(
+                             Icons.chat_bubble_outline, 
+                             size: 20, // Spec 20px
+                             color: Color(0xFF8E8E93), // Spec #8E8E93
+                          ),
+                           const SizedBox(width: 6), // Spec 6px
+                          Text(
+                            widget.post.commentCount.toString(),
+                            style: const TextStyle(
+                              color: Color(0xFF3A3A3C), // Spec: #3A3A3C
+                              fontWeight: FontWeight.w500, // Spec: 500
+                              fontSize: 13, // Spec: 13px
+                              fontFamily: 'Inter',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  String _formatTimeAgo(DateTime timestamp) {
+    final difference = DateTime.now().difference(timestamp);
+    if (difference.inDays > 7) {
+      return '${timestamp.day}/${timestamp.month}/${timestamp.year}';
+    } else if (difference.inDays > 0) {
+      return '${difference.inDays}d ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes}m ago';
+    } else {
+      return 'Just now';
+    }
   }
 }

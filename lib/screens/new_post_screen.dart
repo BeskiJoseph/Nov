@@ -37,15 +37,60 @@ class _NewPostScreenState extends State<NewPostScreen> {
   ];
 
   Future<void> _pickMedia() async {
-    final XFile? file =
-        await _picker.pickImage(source: ImageSource.gallery);
-    if (file == null) return;
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Take Photo'),
+              onTap: () async {
+                Navigator.pop(context);
+                final file = await _picker.pickImage(source: ImageSource.camera);
+                _processMedia(file, 'image', 'jpg');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Choose Image from Gallery'),
+              onTap: () async {
+                Navigator.pop(context);
+                final file = await _picker.pickImage(source: ImageSource.gallery);
+                _processMedia(file, 'image', 'jpg');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.videocam),
+              title: const Text('Record Video'),
+              onTap: () async {
+                Navigator.pop(context);
+                final file = await _picker.pickVideo(source: ImageSource.camera);
+                _processMedia(file, 'video', 'mp4');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.video_library),
+              title: const Text('Choose Video from Gallery'),
+              onTap: () async {
+                Navigator.pop(context);
+                final file = await _picker.pickVideo(source: ImageSource.gallery);
+                _processMedia(file, 'video', 'mp4');
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
+  Future<void> _processMedia(XFile? file, String type, String extension) async {
+    if (file == null) return;
     final bytes = await file.readAsBytes();
     setState(() {
       _mediaBytes = bytes;
-      _mediaExtension = 'jpg';
-      _mediaType = 'image';
+      _mediaType = type;
+      _mediaExtension = extension;
     });
   }
 
@@ -126,6 +171,7 @@ class _NewPostScreenState extends State<NewPostScreen> {
                             // For now assuming it returns unique URL.
           data: _mediaBytes!,
           fileExtension: _mediaExtension ?? 'jpg',
+          mediaType: _mediaType,
         );
       }
 
@@ -223,15 +269,42 @@ class _NewPostScreenState extends State<NewPostScreen> {
                   width: double.infinity,
                   child: ElevatedButton.icon(
                     onPressed: _pickMedia,
-                    icon: const Icon(Icons.add_photo_alternate),
-                    label: const Text('Add image'),
+                    icon: const Icon(Icons.add_a_photo),
+                    label: const Text('Add Media'),
                   ),
                 ),
                 const SizedBox(height: 8),
                 if (_mediaBytes != null)
-                  const Text(
-                    'Media selected',
-                    style: TextStyle(fontWeight: FontWeight.w500),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                         Icon(
+                          _mediaType == 'video' ? Icons.videocam : Icons.image,
+                          color: Colors.blue,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '${_mediaType == 'image' ? 'Image' : 'Video'} selected',
+                            style: const TextStyle(fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () {
+                            setState(() {
+                              _mediaBytes = null;
+                              _mediaType = 'image';
+                            });
+                          },
+                        )
+                      ],
+                    ),
                   ),
               ],
             ),
